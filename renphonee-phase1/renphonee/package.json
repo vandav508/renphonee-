@@ -1,0 +1,34 @@
+{
+  "name": "renphonee",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio",
+    "postinstall": "prisma generate",
+    "db:seed": "prisma db seed",
+    "build:netlify": "prisma db push && if [ \"$SEED_DEMO\" = \"true\" ]; then prisma db seed; fi && next build"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.2.0",
+    "next": "^14.2.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "recharts": "^2.12.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "autoprefixer": "^10",
+    "postcss": "^8",
+    "prisma": "^6.2.0",
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5",
+    "tsx": "^4.19.0"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  }
+}

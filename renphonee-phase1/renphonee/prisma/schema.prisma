@@ -1,0 +1,190 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+datasource db { provider = "postgresql"; url = env("DATABASE_URL") } 
+
+enum Role { OWNER ADMIN STAFF }
+enum ProductStatus { AVAILABLE RESERVED SOLD }
+enum PaymentMethod { CASH TRANSFER QRIS DP CICILAN }
+enum PaymentStatus { PAID PARTIAL UNPAID }
+enum AttendanceStatus { HADIR TERLAMBAT IZIN SAKIT ALPHA }
+enum PayrollStatus { DRAFT PAID }
+enum PayrollItemType { ALLOWANCE BONUS DEDUCTION }
+
+// Semua uang disimpan dalam rupiah (Int).
+
+model User {
+  id String @id @default(cuid())
+  email String @unique
+  passwordHash String
+  role Role @default(STAFF)
+  active Boolean @default(true)
+  employeeId String? @unique
+  employee Employee? @relation(fields: [employeeId], references: [id])
+}
+
+model Employee {
+  id String @id @default(cuid())
+  name String
+  phone String?
+  position String
+  joinDate DateTime
+  active Boolean @default(true)
+  baseSalary Int
+  defaultAllowance Int @default(0)
+  bankAccount String?
+  notes String?
+  user User?
+  sales Sale[]
+  attendance Attendance[]
+  payrolls Payroll[]
+}
+
+model Supplier {
+  id String @id @default(cuid())
+  name String
+  phone String?
+  notes String?
+  products Product[]
+  expenses Expense[]
+}
+
+model Product {
+  id String @id @default(cuid())
+  sku String @unique
+  slug String @unique
+  model String
+  storage String
+  color String
+  imei String? @unique
+  conditionGrade String        // contoh: "98%"
+  batteryHealth Int?
+  completeness String          // Fullset / Unit only / iBox
+  warranty String?
+  status ProductStatus @default(AVAILABLE)
+  costPrice Int
+  sellPrice Int
+  supplierId String?
+  supplier Supplier? @relation(fields: [supplierId], references: [id])
+  dateIn DateTime @default(now())
+  notes String?
+  images ProductImage[]
+  saleItems SaleItem[]
+  logs StockLog[]
+  @@index([status])
+}
+
+model ProductImage {
+  id String @id @default(cuid())
+  productId String
+  url String
+  sortOrder Int @default(0)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model StockLog {
+  id String @id @default(cuid())
+  productId String
+  action String               // IN, RESERVED, SOLD, EDIT
+  byUserId String?
+  createdAt DateTime @default(now())
+  product Product @relation(fields: [productId], references: [id])
+}
+
+model Customer {
+  id String @id @default(cuid())
+  name String
+  phone String?
+  address String?
+  notes String?
+  sales Sale[]
+}
+
+model Sale {
+  id String @id @default(cuid())
+  invoiceNo String @unique
+  date DateTime @default(now())
+  customerId String
+  employeeId String?
+  paymentMethod PaymentMethod
+  paymentStatus PaymentStatus
+  notes String?
+  customer Customer @relation(fields: [customerId], references: [id])
+  employee Employee? @relation(fields: [employeeId], references: [id])
+  items SaleItem[]
+  incomes Income[]
+}
+
+// Snapshot modal & harga jual agar laporan lama tidak berubah saat produk diedit.
+// Laba = sellPrice - costPrice (dihitung, tidak disimpan).
+model SaleItem {
+  id String @id @default(cuid())
+  saleId String
+  productId String
+  costPrice Int
+  sellPrice Int
+  sale Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+}
+
+model Income {
+  id String @id @default(cuid())
+  date DateTime @default(now())
+  category String             // PENJUALAN_IPHONE, AKSESORIS, LAINNYA
+  amount Int
+  saleId String?
+  notes String?
+  sale Sale? @relation(fields: [saleId], references: [id])
+}
+
+model Expense {
+  id String @id @default(cuid())
+  date DateTime @default(now())
+  category String             // PEMBELIAN_STOK, GAJI, BONUS, SEWA, LISTRIK, INTERNET, TRANSPORT, OPERASIONAL, LAINNYA
+  amount Int
+  supplierId String?
+  payrollId String? @unique
+  notes String?
+  supplier Supplier? @relation(fields: [supplierId], references: [id])
+  payroll Payroll? @relation(fields: [payrollId], references: [id])
+}
+
+model Attendance {
+  id String @id @default(cuid())
+  employeeId String
+  date DateTime
+  checkIn DateTime?
+  checkOut DateTime?
+  status AttendanceStatus
+  employee Employee @relation(fields: [employeeId], references: [id])
+  @@unique([employeeId, date])
+}
+
+model Payroll {
+  id String @id @default(cuid())
+  employeeId String
+  period String               // "2026-10"
+  baseSalary Int
+  status PayrollStatus @default(DRAFT)
+  paidAt DateTime?
+  employee Employee @relation(fields: [employeeId], references: [id])
+  items PayrollItem[]
+  expense Expense?
+  @@unique([employeeId, period])
+}
+
+// Gaji bersih = baseSalary + ALLOWANCE + BONUS - DEDUCTION (dihitung dari items)
+model PayrollItem {
+  id String @id @default(cuid())
+  payrollId String
+  type PayrollItemType
+  label String
+  amount Int
+  payroll Payroll @relation(fields: [payrollId], references: [id], onDelete: Cascade)
+}
+
+model Setting {
+  key String @id
+  value String
+}
